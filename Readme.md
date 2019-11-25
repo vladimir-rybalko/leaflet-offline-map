@@ -1,0 +1,1 @@
+[Demo](http://vladimir-rybalko.github.io/leaflet-offline-map/index.html)
