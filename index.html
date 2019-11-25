@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="./css/leaflet.css" rel="stylesheet" type="text/css" />
+  
+  <script src="./js/leaflet.js"></script>
+  <script src="./js/sql.js"></script>
+  <script src="./js/Leaflet.TileLayer.MBTiles.js"></script>
+  <script src="./js/L.Graticule.js"></script>
+  
+  <meta charset="utf-8">
+  <title>Offline demo map</title>
+  
+  <style>
+    html, body, #map {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    .graticule-label-vert, .graticule-label-horiz{
+        font-size: 12px;
+        font-style: italic;
+        color: #333;
+        margin-left: 4px !important;
+        margin-top: -16px !important;
+        width: 85px !important;
+        text-shadow: -2px 0 #FFFFFF, 0 2px #FFFFFF, 2px 0 #FFFFFF, 0 -2px #FFFFFF;
+    }
+    .graticule-label-vert {
+        margin-left: 8px;
+        -ms-transform: rotate(-20deg); /* IE 9 */
+        -webkit-transform: rotate(-20deg); /* Safari */
+        transform: rotate(-20deg); /* Standard syntax */
+    }
+  </style>
+</head>
+<body>
+  <div id='map' />
+  <script>
+    const map = new L.Map('map');
+    map.setView([74.30735, 56.86523], 5);
+    const mb = L.tileLayer.mbTiles('./data/countries-raster.mbtiles', {
+      minZoom: 0,
+      maxZoom: 6
+    }).addTo(map);
+    
+    mb.on('databaseloaded', function(ev) {
+      console.info('MBTiles DB loaded', ev);
+    });
+    
+    mb.on('databaseerror', function(ev) {
+      console.info('MBTiles DB error', ev);
+    });
+
+    const graticule = L.graticule({
+        style: {
+            color: '#f00',
+            weight: 1
+        },
+        interval: 5
+    }).addTo(map);
+
+    const graticuleLabelsLayer = new L.layerGroup();
+    graticuleLabelsLayer.addTo(map);
+
+    const getGraticuleLabels = function() {
+      let self = this;
+      const mapBounds = map.getBounds();
+      let graticuleLabels = [];
+      graticuleLabelsLayer.clearLayers();
+      let graticuleFeatures = graticule.getLayers();
+
+      for (let i = 0; i < graticuleFeatures.length; i++) {
+        if (graticuleFeatures[i].feature.geometry.coordinates[0][0] > mapBounds.getWest() && 
+          graticuleFeatures[i].feature.geometry.coordinates[0][0] < mapBounds.getEast() && 
+          graticuleFeatures[i].feature.geometry.coordinates[0][0] === graticuleFeatures[i].feature.geometry.coordinates[1][0]) {
+          if(graticuleFeatures[i].feature.geometry.coordinates[1][0]%2 == 0 || graticuleFeatures[i].feature.geometry.coordinates[1][0]%2*(-1) == 0){
+            const merLatLng = new L.LatLng(
+              mapBounds.getSouth() + 
+              ((mapBounds.getNorth() - mapBounds.getSouth()) * 0.05),
+              graticuleFeatures[i].feature.geometry.coordinates[0][0]
+            );
+
+            graticuleLabelsLayer.addLayer(
+              new L.Marker(merLatLng, {
+                icon: new L.DivIcon({
+                  html: graticuleFeatures[i].feature.properties.name,
+                  className: 'graticule-label-horiz',
+                  iconSize: new L.Point(14,14)
+                })
+              })
+            );
+          }
+        } else if (graticuleFeatures[i].feature.geometry.coordinates[0][1] > mapBounds.getSouth() && 
+          graticuleFeatures[i].feature.geometry.coordinates[0][1] < mapBounds.getNorth() && 
+          graticuleFeatures[i].feature.geometry.coordinates[0][1] === graticuleFeatures[i].feature.geometry.coordinates[1][1]) {
+          const parLatLng = new L.LatLng(graticuleFeatures[i].feature.geometry.coordinates[0][1],
+            mapBounds.getEast() <= 180 ? mapBounds.getWest() >= -180 ? mapBounds.getWest() + ((mapBounds.getEast() - mapBounds.getWest()) * 0.95) : -179.999999 : 179.999999);
+
+          graticuleLabelsLayer.addLayer(
+            new L.Marker(parLatLng, {
+              icon: new L.DivIcon({
+                html: graticuleFeatures[i].feature.properties.name,
+                className: 'graticule-label-vert',
+                iconSize: new L.Point(14,14)
+              })
+            })
+          );
+        }
+      }
+    };
+
+    const updateGraticuleLayer = function() {
+      graticule.setExtent(map.getBounds());
+      graticule.refresh();
+      getGraticuleLabels();
+    };
+
+    updateGraticuleLayer();
+    map.on('moveend', updateGraticuleLayer);
+  </script>
+</body>
+</html>
